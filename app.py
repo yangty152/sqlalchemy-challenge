@@ -48,16 +48,16 @@ def welcome():
 
 @app.route("/api/v1.0/precipitation")
 def precipitation():
-     # Create our session (link) from Python to the DB
     session = Session(engine)
 
-    """Return a list of all passenger names"""
-    # Query all passengers
-    results = session.query(Measurement.date, Measurement.prcp).all()
-
+    """Return a list of all date from last year and prcp"""
+    latest_date = session.query(Measurement.date).order_by(Measurement.date.desc()).first()
+    latest_date_dt = dt.datetime.strptime(latest_date[0], '%Y-%m-%d')
+    year_ago = latest_date_dt.date() - dt.timedelta(days=365)
+    results = session.query(Measurement.date, Measurement.prcp).\
+        filter(Measurement.station == Station.station).\
+        filter(Measurement.date>=year_ago).all()
     session.close()
-
-    # Create dictionary
     prcp_all = []
     for date, prcp in results:
         prcp_dict = {}
@@ -69,49 +69,46 @@ def precipitation():
 @app.route("/api/v1.0/stations")
 def stations():
     session = Session(engine)
-
     """Return a list of stations"""
     results = session.query(Station.station).all()
-
     session.close()
-
     all_names = list(np.ravel(results))
-
     return jsonify(all_names)
 
 @app.route("/api/v1.0/tobs")
 def tobs():
     session = Session(engine)
+    """Return tobs from the previous year for the most active station"""
     latest_date = session.query(Measurement.date).order_by(Measurement.date.desc()).first()
     latest_date_dt = dt.datetime.strptime(latest_date[0], '%Y-%m-%d')
     year_ago = latest_date_dt.date() - dt.timedelta(days=365)
     temp = session.query(Measurement.date, Measurement.tobs).\
     filter(Measurement.station == Station.station).\
+    filter(Measurement.date>=year_ago).\
+    filter(Measurement.date<=latest_date_dt).\
     filter(Station.id == 7).all()
     temp_df=pd.DataFrame(temp)
     session.close()
-
     temp_list = list(np.ravel(temp_df['tobs']))
-
     return jsonify(temp_list)
 
 @app.route("/api/v1.0/start_date/<start>")
 def summary_temp_start(start):
+    """Return min, max and avg temp for a given start date"""
     session = Session(engine)
     temp = session.query(func.min(Measurement.tobs), func.max(Measurement.tobs),func.avg(Measurement.tobs)).\
     filter(Measurement.date>=start).all()
-
     session.close()
     temp_sum = list(np.ravel(temp))
     return jsonify(temp_sum)
 
 @app.route("/api/v1.0/start_end_date/<start>/<end>")
 def summary_temp_start_end(start, end):
+    """Return min, max and avg temp for a given start and end date range"""
     session = Session(engine)
     temp = session.query(func.min(Measurement.tobs), func.max(Measurement.tobs),func.avg(Measurement.tobs)).\
     filter(Measurement.date>=start).\
     filter(Measurement.date<=end).all()
-
     session.close()
     temp_sum = list(np.ravel(temp))
     return jsonify(temp_sum)
